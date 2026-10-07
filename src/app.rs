@@ -10195,6 +10195,7 @@ pub fn engine_config(
         volume_dir: dirs.volume_dir(),
         audio_cache_dir: settings.audio_cache.then(|| dirs.audio_cache_dir()),
         audio_cache_limit: Some(settings.audio_cache_mb.max(64) * 1024 * 1024),
+        local_files: settings.local_files.engine_directories(),
         proxy,
     }
 }

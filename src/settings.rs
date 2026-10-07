@@ -1,6 +1,6 @@
 //! User preferences, stored as one readable JSON file.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -220,6 +220,57 @@ fn proxy_mode_is_system(mode: &ProxyMode) -> bool {
     *mode == ProxyMode::System
 }
 
+/// Audio files on this machine, played by the engine itself.
+///
+/// The engine scans the folder once, when it starts, so a file added while
+/// Spotifast is running needs a rescan before it can be played.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LocalFilesSettings {
+    /// Show local files in the sidebar and let them be played.
+    pub enabled: bool,
+    /// The folder searched, recursively, for audio files. `None` follows the
+    /// desktop's own music folder, so a fresh install needs no setup.
+    pub path: Option<PathBuf>,
+}
+
+impl Default for LocalFilesSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            path: None,
+        }
+    }
+}
+
+impl LocalFilesSettings {
+    /// The folder actually searched: the chosen one, or the desktop's own
+    /// music folder.
+    pub fn directory(&self) -> PathBuf {
+        match &self.path {
+            Some(path) => path.clone(),
+            None => default_music_dir(),
+        }
+    }
+
+    /// The folders the engine is given, empty when the feature is off.
+    pub fn engine_directories(&self) -> Vec<PathBuf> {
+        if self.enabled {
+            vec![self.directory()]
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+/// The desktop's music folder, or `~/Music` when it does not name one.
+fn default_music_dir() -> PathBuf {
+    directories::UserDirs::new()
+        .and_then(|dirs| dirs.audio_dir().map(Path::to_path_buf))
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Music")))
+        .unwrap_or_else(|| PathBuf::from("/Music"))
+}
+
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -395,6 +446,8 @@ pub struct Settings {
     /// succeeds. This flag is only in memory and is never persisted.
     #[serde(skip)]
     pub proxy_password_legacy: bool,
+    /// Audio files on this machine, played by the engine itself.
+    pub local_files: LocalFilesSettings,
 }
 
 impl std::fmt::Debug for Settings {
@@ -490,6 +543,7 @@ impl Default for Settings {
             proxy_username: String::new(),
             proxy_password: String::new(),
             proxy_password_legacy: false,
+            local_files: LocalFilesSettings::default(),
         }
     }
 }

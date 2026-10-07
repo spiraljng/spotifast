@@ -55,6 +55,10 @@ pub struct EngineConfig {
     pub volume_dir: PathBuf,
     pub audio_cache_dir: Option<PathBuf>,
     pub audio_cache_limit: Option<u64>,
+    /// Folders searched for audio files on this machine. The engine reads
+    /// them once, at startup, and plays what it finds from disk. Empty
+    /// leaves the feature off.
+    pub local_files: Vec<PathBuf>,
     /// Output buffer length in milliseconds.
     pub buffer_ms: u32,
     pub tap: Arc<AudioTap>,
@@ -350,6 +354,7 @@ impl Engine {
             // the tap can undo it for the visualisers: they show the music,
             // not the loudness housekeeping.
             normalisation_report: Some(Arc::clone(&normalisation_factor)),
+            local_file_directories: config.local_files.clone(),
             ..PlayerConfig::default()
         };
 
@@ -1656,6 +1661,7 @@ mod tests {
             volume_dir: PathBuf::new(),
             audio_cache_dir: None,
             audio_cache_limit: None,
+            local_files: Vec::new(),
             proxy: crate::settings::ProxyConfig::Off,
         };
         let id = config.device_id();
