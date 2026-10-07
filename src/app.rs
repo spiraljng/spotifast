@@ -5095,6 +5095,7 @@ impl App {
                 }
                 self.queue = Loadable::from_result(result);
                 self.reconcile_pending_queue();
+                self.restore_local_queue_rows();
                 if let Some(queue) = self.queue.get() {
                     let uris: Vec<String> = queue
                         .queue
@@ -7971,6 +7972,40 @@ impl App {
         }
         self.pending_queue_adds
             .retain(|addition| addition.at.elapsed() < Duration::from_secs(30));
+    }
+
+    /// Spotify's queue never reports a local file: one is queued on this
+    /// computer's engine, and Spotify has no record of it to report. A fetch
+    /// therefore arrives without them and the rows would vanish once the
+    /// optimistic window closed. Put back every local file the listener has
+    /// queued and not yet played.
+    fn restore_local_queue_rows(&mut self) {
+        let current = self.current_track_uri();
+        let missing: Vec<PlayableItem> = {
+            let Loadable::Loaded(queue) = &self.queue else {
+                return;
+            };
+            let present: Vec<&str> = queue.queue.iter().map(PlayableItem::uri).collect();
+            self.manual_queue
+                .iter()
+                .filter(|uri| crate::local_files::is_local_uri(uri))
+                .filter(|uri| !present.contains(&uri.as_str()))
+                .filter(|uri| current.as_deref() != Some(uri.as_str()))
+                .map(|uri| self.optimistic_queue_item(uri, ""))
+                .collect()
+        };
+        if missing.is_empty() {
+            return;
+        }
+        let at = match &self.queue {
+            Loadable::Loaded(queue) => Self::end_of_queued_rows(&queue.queue, &self.manual_queue),
+            _ => 0,
+        };
+        if let Loadable::Loaded(queue) = &mut self.queue {
+            for item in missing.into_iter().rev() {
+                queue.queue.insert(at, item);
+            }
+        }
     }
 
     /// Restores pending additions missing from a stale fetched queue.
@@ -12876,6 +12911,35 @@ mod tests {
         let (current, next) = queue_uris(&app);
         assert_eq!(current.as_deref(), Some("spotify:track:b"));
         assert_eq!(next, vec!["spotify:track:c"]);
+    }
+
+    /// Spotify's queue never reports a local file, so a fetch arrives without
+    /// one. The optimistic row used to carry it for thirty seconds and then
+    /// let go, which is why queued local files disappeared on their own.
+    #[test]
+    fn a_fetched_queue_keeps_the_local_files_queued_here() {
+        let local = "spotify:local:Artist:Album:Song:245";
+        let mut app = headless_app();
+        app.manual_queue = vec![local.into(), "spotify:track:b".into()];
+        app.local.track = Some(crate::player::LocalTrack {
+            uri: "spotify:track:a".into(),
+            ..Default::default()
+        });
+        app.local.playback = Playback::Playing;
+
+        let fetched = Queue {
+            currently_playing: Some(queued_song("spotify:track:a")),
+            queue: vec![queued_song("spotify:track:b")],
+        };
+        app.handle_api(ApiResponse::Queue {
+            seq: app.queue_seq,
+            result: Ok(fetched),
+        });
+        let (_, next) = queue_uris(&app);
+        assert!(
+            next.contains(&local.to_string()),
+            "the refresh dropped the local file: {next:?}"
+        );
     }
 
     /// A stale queue response does not undo an optimistic skip.
