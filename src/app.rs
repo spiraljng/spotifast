@@ -2647,6 +2647,14 @@ impl App {
             if now.local && self.resume_track.as_deref() == Some(now.uri.as_str()) {
                 for uri in queued {
                     self.manual_queue.push(uri.clone());
+                    // A local file is read from this computer's disk, and
+                    // Spotify's Web API refuses its URI. This branch only runs
+                    // when this computer is the one playing, so the engine can
+                    // take it directly.
+                    if crate::local_files::is_local_uri(&uri) {
+                        self.backend.player(PlayerCommand::AddToQueue(uri));
+                        continue;
+                    }
                     self.backend.api(ApiRequest::AddToQueue {
                         uri,
                         device_id: self.local_device_id.clone(),
@@ -12562,6 +12570,45 @@ mod tests {
             "a fresh start lets the saved queue go"
         );
         assert!(app.session_dirty);
+    }
+
+    /// A saved queue holding a local file must not be replayed through
+    /// Spotify's Web API, which refuses a spotify:local: URI. It used to be,
+    /// so every relaunch logged one rejected add per local file and the rows
+    /// never came back. This computer is already the one playing, so the
+    /// engine takes them.
+    #[test]
+    fn a_restored_queue_sends_local_files_to_the_engine() {
+        let mut app = headless_app();
+        let local = "spotify:local:Artist:Album:Song:245";
+        app.resume_track = Some("spotify:track:abc".into());
+        app.resume_queue = vec![local.into(), "spotify:track:q1".into()];
+        app.local.track = Some(crate::player::LocalTrack {
+            uri: "spotify:track:abc".into(),
+            ..Default::default()
+        });
+        app.local.playback = Playback::Playing;
+        app.on_now_playing_changed();
+
+        assert_eq!(
+            app.manual_queue,
+            [local.to_string(), "spotify:track:q1".to_string()],
+            "both rows come back"
+        );
+        let sent: Vec<String> = app
+            .backend
+            .take_queue_requests()
+            .into_iter()
+            .filter_map(|request| match request {
+                ApiRequest::AddToQueue { uri, .. } => Some(uri),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            sent,
+            ["spotify:track:q1"],
+            "the local file must not go to the Web API"
+        );
     }
 
     /// A selected list row loads without shuffle, then enables shuffle.
