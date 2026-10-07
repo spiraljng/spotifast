@@ -2075,6 +2075,11 @@ impl App {
                 self.sign_in_url = None;
                 self.reset_data();
                 self.load_playlists();
+                // Read the folder now rather than when the page is first
+                // opened: a local file in a playlist or a restored queue is
+                // only playable once the scan has found it, and a row that
+                // cannot be played is drawn as unavailable.
+                self.refresh_local_files();
                 self.ensure_loaded(self.page().clone());
                 self.poll_remote(true);
             }
@@ -5093,9 +5098,10 @@ impl App {
                     self.queue_shuffle_pending = None;
                     self.queue_reorder_pending = None;
                 }
+                let local_anchors = self.local_queue_anchors();
                 self.queue = Loadable::from_result(result);
                 self.reconcile_pending_queue();
-                self.restore_local_queue_rows();
+                self.restore_local_queue_rows(&local_anchors);
                 if let Some(queue) = self.queue.get() {
                     let uris: Vec<String> = queue
                         .queue
@@ -7974,37 +7980,69 @@ impl App {
             .retain(|addition| addition.at.elapsed() < Duration::from_secs(30));
     }
 
+    /// Where each local file sat in the queue on show: the URI of the row it
+    /// followed, or `None` for the top. A fetch cannot report local files, so
+    /// this is what puts each one back beside what it was next to rather than
+    /// bunching them all at the end.
+    fn local_queue_anchors(&self) -> Vec<(Option<String>, String)> {
+        let Loadable::Loaded(queue) = &self.queue else {
+            return Vec::new();
+        };
+        let mut anchors = Vec::new();
+        let mut last: Option<String> = None;
+        for item in &queue.queue {
+            if crate::local_files::is_local_uri(item.uri()) {
+                anchors.push((last.clone(), item.uri().to_string()));
+            } else {
+                last = Some(item.uri().to_string());
+            }
+        }
+        anchors
+    }
+
     /// Spotify's queue never reports a local file: one is queued on this
     /// computer's engine, and Spotify has no record of it to report. A fetch
     /// therefore arrives without them and the rows would vanish once the
     /// optimistic window closed. Put back every local file the listener has
-    /// queued and not yet played.
-    fn restore_local_queue_rows(&mut self) {
+    /// queued and not yet played, after whatever it followed.
+    fn restore_local_queue_rows(&mut self, anchors: &[(Option<String>, String)]) {
         let current = self.current_track_uri();
-        let missing: Vec<PlayableItem> = {
+        let wanted: Vec<(Option<String>, PlayableItem)> = {
             let Loadable::Loaded(queue) = &self.queue else {
                 return;
             };
             let present: Vec<&str> = queue.queue.iter().map(PlayableItem::uri).collect();
-            self.manual_queue
+            anchors
                 .iter()
-                .filter(|uri| crate::local_files::is_local_uri(uri))
-                .filter(|uri| !present.contains(&uri.as_str()))
-                .filter(|uri| current.as_deref() != Some(uri.as_str()))
-                .map(|uri| self.optimistic_queue_item(uri, ""))
+                .filter(|(_, uri)| self.manual_queue.iter().any(|held| held == uri))
+                .filter(|(_, uri)| !present.contains(&uri.as_str()))
+                .filter(|(_, uri)| current.as_deref() != Some(uri.as_str()))
+                .map(|(anchor, uri)| (anchor.clone(), self.optimistic_queue_item(uri, "")))
                 .collect()
         };
-        if missing.is_empty() {
+        if wanted.is_empty() {
             return;
         }
-        let at = match &self.queue {
+        let tail = match &self.queue {
             Loadable::Loaded(queue) => Self::end_of_queued_rows(&queue.queue, &self.manual_queue),
             _ => 0,
         };
-        if let Loadable::Loaded(queue) = &mut self.queue {
-            for item in missing.into_iter().rev() {
-                queue.queue.insert(at, item);
-            }
+        let Loadable::Loaded(queue) = &mut self.queue else {
+            return;
+        };
+        // Back to front, so a row put at a later place does not push an
+        // earlier one along.
+        for (anchor, item) in wanted.into_iter().rev() {
+            let at = match &anchor {
+                Some(anchor) => queue
+                    .queue
+                    .iter()
+                    .position(|held| held.uri() == anchor)
+                    .map_or(tail, |at| at + 1),
+                None => 0,
+            };
+            let index = at.min(queue.queue.len());
+            queue.queue.insert(index, item);
         }
     }
 
@@ -12915,17 +12953,22 @@ mod tests {
 
     /// Spotify's queue never reports a local file, so a fetch arrives without
     /// one. The optimistic row used to carry it for thirty seconds and then
-    /// let go, which is why queued local files disappeared on their own.
+    /// let go, which is why queued local files disappeared on their own, and
+    /// why the ones that came back were bunched at the end instead of staying
+    /// beside what they followed.
     #[test]
-    fn a_fetched_queue_keeps_the_local_files_queued_here() {
-        let local = "spotify:local:Artist:Album:Song:245";
+    fn a_fetched_queue_keeps_the_local_files_where_they_were() {
+        let l1 = "spotify:local:Artist:Album:One:245";
+        let l2 = "spotify:local:Artist:Album:Two:245";
+        let l3 = "spotify:local:Artist:Album:Three:245";
         let mut app = headless_app();
-        app.manual_queue = vec![local.into(), "spotify:track:b".into()];
         app.local.track = Some(crate::player::LocalTrack {
             uri: "spotify:track:a".into(),
             ..Default::default()
         });
         app.local.playback = Playback::Playing;
+        app.queue = loaded_queue("spotify:track:a", &[l1, l2, "spotify:track:b", l3]);
+        app.manual_queue = vec![l1.into(), l2.into(), "spotify:track:b".into(), l3.into()];
 
         let fetched = Queue {
             currently_playing: Some(queued_song("spotify:track:a")),
@@ -12936,9 +12979,15 @@ mod tests {
             result: Ok(fetched),
         });
         let (_, next) = queue_uris(&app);
-        assert!(
-            next.contains(&local.to_string()),
-            "the refresh dropped the local file: {next:?}"
+        assert_eq!(
+            next,
+            vec![
+                l1.to_string(),
+                l2.to_string(),
+                "spotify:track:b".to_string(),
+                l3.to_string()
+            ],
+            "the local files came back in the wrong places"
         );
     }
 

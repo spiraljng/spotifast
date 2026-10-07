@@ -510,7 +510,7 @@ pub fn prepare_table_view(
             let mut uris = Vec::new();
             for &index in &visible {
                 let item = &items[index].0;
-                view_positions.push(widgets::row_playable(item).then(|| {
+                view_positions.push(widgets::row_playable(app, item).then(|| {
                     let position = uris.len();
                     uris.push(item.uri().to_string());
                     position

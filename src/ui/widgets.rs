@@ -1098,13 +1098,22 @@ pub fn context_menu_items(
     }
 }
 
-/// Whether a row can start playback through Spotify. Unknown availability
-/// remains playable, while local files and missing entries cannot be requested.
-pub(crate) fn row_playable(item: &PlayableItem) -> bool {
-    !item.uri().is_empty()
-        && !item.uri().starts_with("spotify:local:")
-        && !matches!(item, PlayableItem::Track(track)
-            if track.is_local || track.is_playable == Some(false))
+/// Whether a row can start playback. Unknown availability remains playable,
+/// while missing entries cannot be requested. A local file plays from this
+/// computer's own disk, so it is playable exactly when the scan found it:
+/// one named in a Spotify playlist whose file is not in the folder, or with
+/// local files switched off, has nothing to play.
+pub(crate) fn row_playable(app: &App, item: &PlayableItem) -> bool {
+    if item.uri().is_empty() {
+        return false;
+    }
+    if matches!(item, PlayableItem::Track(track) if track.is_playable == Some(false)) {
+        return false;
+    }
+    if crate::local_files::is_local_uri(item.uri()) {
+        return app.local_files.iter().any(|file| file.uri == item.uri());
+    }
+    true
 }
 
 /// Describes one row of a track table.
@@ -1262,7 +1271,7 @@ fn track_row_contents(
     let width = ui.available_width();
     let (rect, response) = ui.allocate_exact_size(vec2(width, row_height), Sense::click_and_drag());
     let rect = rect.translate(vec2(0.0, row.shift));
-    let unavailable = !row_playable(row.item);
+    let unavailable = !row_playable(app, row.item);
     response.widget_info(|| {
         egui::WidgetInfo::selected(
             egui::WidgetType::Button,
