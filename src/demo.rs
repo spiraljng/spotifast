@@ -616,6 +616,25 @@ pub fn populate(app: &mut App) {
             app.track_cache.insert(id.clone(), track.clone());
         }
     }
+    // In the order a real folder reads, which is artist, then album, then
+    // title; the page never sorts, because the scan already did.
+    app.local_files = vec![
+        demo_local_file("Hells Bells", "AC/DC", "Back in Black", 312),
+        demo_local_file("Avril 14th", "Aphex Twin", "Drukqs", 125),
+        demo_local_file("Windowlicker", "Aphex Twin", "Windowlicker", 367),
+        demo_local_file(
+            "Roygbiv",
+            "Boards of Canada",
+            "Music Has the Right to Children",
+            152,
+        ),
+        demo_local_file("Teardrop", "Massive Attack", "Mezzanine", 330),
+        demo_local_file("Svefn-g-englar", "Sigur Rós", "Ágætis byrjun", 590),
+    ];
+    // Only the demo has no runtime to answer a search, so only the demo
+    // marks the list as read; everywhere else the page asks for one.
+    #[cfg(feature = "demo")]
+    app.local_files_already_read();
 }
 
 /// Words to go with the sample track, timed so that the one being sung
@@ -677,9 +696,48 @@ fn play_here(app: &mut App) {
         duration_ms: now.as_ref().map(|now| now.duration_ms).unwrap_or_default(),
         is_episode: now.as_ref().is_some_and(|now| now.show_id.is_some()),
     });
+    app.local_files = vec![
+        demo_local_file("Svefn-g-englar", "Sigur Rós", "Ágætis byrjun", 590),
+        demo_local_file(
+            "Roygbiv",
+            "Boards of Canada",
+            "Music Has the Right to Children",
+            152,
+        ),
+        demo_local_file("Hells Bells", "AC/DC", "Back in Black", 312),
+        demo_local_file("Teardrop", "Massive Attack", "Mezzanine", 330),
+        demo_local_file("Windowlicker", "Aphex Twin", "Windowlicker", 367),
+        demo_local_file("Avril 14th", "Aphex Twin", "Drukqs", 125),
+    ];
     app.local.volume = app.settings.volume;
     // Where the displayed song was, so the player bar shows the same time.
     app.local.position_ms = now.as_ref().map_or(0, |now| now.position_ms);
+}
+
+/// One row for the Local files page. The URI is spelled the way librespot
+/// writes one, so the sample reads like a real folder rather than a mock.
+fn demo_local_file(
+    title: &str,
+    artist: &str,
+    album: &str,
+    seconds: u64,
+) -> crate::local_files::LocalFile {
+    fn encoded(text: &str) -> String {
+        text.replace(' ', "+").replace('/', "%2F")
+    }
+    crate::local_files::LocalFile {
+        uri: format!(
+            "spotify:local:{}:{}:{}:{seconds}",
+            encoded(artist),
+            encoded(album),
+            encoded(title)
+        ),
+        title: title.to_string(),
+        artist: artist.to_string(),
+        album: album.to_string(),
+        duration: std::time::Duration::from_secs(seconds),
+        path: std::path::PathBuf::from("/home/you/Music").join(format!("{artist} - {title}.flac")),
+    }
 }
 
 /// Half a second of stereo sound shaped like a busy mix, the same every
@@ -753,6 +811,11 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
     // Default screenshots to the main window regardless of saved settings.
     app.settings.winamp_window = false;
     if let Some(page) = page.and_then(Page::decode) {
+        // The page is only reachable once the feature is on, so a screenshot
+        // of it has to turn it on the same way a listener would.
+        if page == Page::LocalFiles {
+            app.settings.local_files.enabled = true;
+        }
         app.open(page);
     }
     for surface in show.unwrap_or("").split(',').map(str::trim) {
@@ -774,6 +837,10 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 };
             }
             "queue" => app.show_queue_panel = true,
+            "local-files" => {
+                app.settings.local_files.enabled = true;
+                app.settings.local_files.path = Some(std::path::PathBuf::from("/home/you/Music"));
+            }
             "playing-next" => {
                 app.show_queue_panel = true;
                 if let Loadable::Loaded(queue) = &app.queue {

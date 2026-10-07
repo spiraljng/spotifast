@@ -224,7 +224,7 @@ fn proxy_mode_is_system(mode: &ProxyMode) -> bool {
 ///
 /// The engine scans the folder once, when it starts, so a file added while
 /// Spotifast is running needs a rescan before it can be played.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LocalFilesSettings {
     /// Show local files in the sidebar and let them be played.
@@ -232,15 +232,6 @@ pub struct LocalFilesSettings {
     /// The folder searched, recursively, for audio files. `None` follows the
     /// desktop's own music folder, so a fresh install needs no setup.
     pub path: Option<PathBuf>,
-}
-
-impl Default for LocalFilesSettings {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            path: None,
-        }
-    }
 }
 
 impl LocalFilesSettings {
@@ -976,6 +967,50 @@ mod tests {
         assert!(settings.system_theme_cache.is_none());
         assert_eq!(settings.theme, ThemeChoice::Dark);
         assert_eq!(settings.volume, 37);
+    }
+
+    #[test]
+    fn local_files_start_off_and_older_files_still_load() {
+        assert!(!Settings::default().local_files.enabled);
+        // A settings file written before the feature existed must keep
+        // working, with the feature off rather than the whole file rejected.
+        let older: Settings = serde_json::from_str("{}").unwrap();
+        assert!(!older.local_files.enabled);
+        assert!(older.local_files.path.is_none());
+
+        let chosen: Settings =
+            serde_json::from_str(r#"{"local_files": {"enabled": true, "path": "/music"}}"#)
+                .unwrap();
+        assert!(chosen.local_files.enabled);
+        assert_eq!(
+            chosen.local_files.directory(),
+            std::path::PathBuf::from("/music")
+        );
+    }
+
+    #[test]
+    fn the_engine_is_given_no_folders_while_local_files_are_off() {
+        let off = super::LocalFilesSettings::default();
+        assert!(off.engine_directories().is_empty());
+
+        let on = super::LocalFilesSettings {
+            enabled: true,
+            ..Default::default()
+        };
+        // With no folder chosen it follows the desktop's own music folder
+        // rather than asking for setup first.
+        assert_eq!(on.engine_directories(), vec![on.directory()]);
+    }
+
+    #[test]
+    fn a_chosen_folder_survives_a_round_trip() {
+        let settings = super::LocalFilesSettings {
+            enabled: true,
+            path: Some(std::path::PathBuf::from("/somewhere/else")),
+        };
+        let text = serde_json::to_string(&settings).unwrap();
+        let back: super::LocalFilesSettings = serde_json::from_str(&text).unwrap();
+        assert_eq!(back, settings);
     }
 
     #[test]

@@ -850,6 +850,20 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
     {
         app.actions.push(Action::FocusSearch);
     }
+    // Only once the listener has turned local files on: an entry that leads
+    // to an empty page is worse than no entry.
+    if app.settings.local_files.enabled
+        && nav_row(
+            ui,
+            &palette,
+            Icon::Music,
+            &gettext(locale, "Local files"),
+            page == Page::LocalFiles,
+        )
+        .clicked()
+    {
+        app.actions.push(Action::Open(Page::LocalFiles));
+    }
     ui.add_space(10.0);
     ui.painter().hline(
         ui.max_rect().x_range().shrink(4.0),

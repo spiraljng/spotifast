@@ -236,6 +236,16 @@ pub struct App {
     settings_dirty: bool,
     last_settings_save: Instant,
     pub backend: Backend,
+    /// Audio files found on this computer, in the order the page lists them.
+    pub local_files: Vec<crate::local_files::LocalFile>,
+    /// The search the list above belongs to. A slower earlier search that
+    /// answers later is dropped rather than overwriting a newer list.
+    pub local_files_generation: u64,
+    /// A search is running, so the page shows progress rather than "empty".
+    pub local_files_scanning: bool,
+    /// The folder the list was read from. Reopening the page shows what is
+    /// already read; a changed folder, or Rescan, searches again.
+    local_files_source: Option<PathBuf>,
     media_controls: Option<MediaControls>,
     /// The desktop's light or dark preference, for "Follow system".
     #[cfg(target_os = "linux")]
@@ -747,6 +757,10 @@ impl App {
             settings_dirty: false,
             last_settings_save: Instant::now(),
             backend,
+            local_files: Vec::new(),
+            local_files_generation: 0,
+            local_files_scanning: false,
+            local_files_source: None,
             media_controls,
             #[cfg(target_os = "linux")]
             system_appearance,
@@ -1073,6 +1087,15 @@ impl App {
     }
 
     // ---- derived state -----------------------------------------------------
+
+    /// Marks the local file list as already read. Only the demo needs this:
+    /// it has no runtime to answer a search, so the page would otherwise sit
+    /// on a spinner that never resolves.
+    #[cfg(feature = "demo")]
+    pub(crate) fn local_files_already_read(&mut self) {
+        self.local_files_source = Some(self.settings.local_files.directory());
+        self.local_files_scanning = false;
+    }
 
     pub fn page(&self) -> &Page {
         &self.history[self.history_index]
@@ -1954,6 +1977,14 @@ impl App {
                 }
                 Event::AudiobookShows(uris) => {
                     self.audiobook_shows.extend(uris);
+                }
+                Event::LocalFiles { generation, files } => {
+                    self.receive_local_files(generation, files);
+                }
+                Event::LocalFilesFolderChosen(path) => {
+                    if let Some(path) = path {
+                        self.actions.push(Action::SetLocalFilesPath(path));
+                    }
                 }
                 Event::Radio {
                     seed,
@@ -3726,8 +3757,45 @@ impl App {
             }
             Page::Radio(seed) => self.load_radio(&seed),
             Page::Queue => self.refresh_queue(true),
+            Page::LocalFiles => self.refresh_local_files(),
             Page::Settings => {}
         }
+    }
+
+    /// Searches the chosen folder, once per folder. Reopening the page shows
+    /// the list already read; Rescan asks for a new one.
+    fn refresh_local_files(&mut self) {
+        if !self.settings.local_files.enabled {
+            return;
+        }
+        let directory = self.settings.local_files.directory();
+        if self.local_files_scanning || self.local_files_source.as_ref() == Some(&directory) {
+            return;
+        }
+        self.scan_local_files();
+    }
+
+    /// Asks the backend to read the folder. The search opens every file to
+    /// read its tags, so it runs on the runtime rather than here.
+    fn scan_local_files(&mut self) {
+        let directory = self.settings.local_files.directory();
+        self.local_files_generation = self.local_files_generation.wrapping_add(1);
+        self.local_files_scanning = true;
+        self.local_files_source = Some(directory.clone());
+        self.backend.send(Command::ScanLocalFiles {
+            generation: self.local_files_generation,
+            directories: vec![directory],
+        });
+    }
+
+    /// Keeps the answer to the search this app last asked for, and drops one
+    /// that a newer search has already replaced.
+    fn receive_local_files(&mut self, generation: u64, files: Vec<crate::local_files::LocalFile>) {
+        if generation != self.local_files_generation {
+            return;
+        }
+        self.local_files_scanning = false;
+        self.local_files = files;
     }
 
     fn load_artist_albums(&mut self, id: &str, filter: DiscographyFilter) {
@@ -9129,6 +9197,34 @@ impl App {
                 if self.local_ready {
                     self.toast(gettext(self.locale, "Restarting local playback"));
                 }
+            }
+            Action::SetLocalFilesEnabled(enabled) => {
+                self.settings.local_files.enabled = enabled;
+                self.save_settings();
+                if enabled {
+                    self.scan_local_files();
+                } else {
+                    self.local_files.clear();
+                    self.local_files_source = None;
+                    self.local_files_scanning = false;
+                    if self.page() == &Page::LocalFiles {
+                        self.actions.push(Action::Open(Page::Settings));
+                    }
+                }
+                // The folders searched are part of the engine's own
+                // configuration, so turning this on or off rebuilds it.
+                self.actions.push(Action::RestartEngine);
+            }
+            Action::SetLocalFilesPath(path) => {
+                self.settings.local_files.path = Some(path);
+                self.save_settings();
+                self.local_files_source = None;
+                self.actions.push(Action::RestartEngine);
+                self.scan_local_files();
+            }
+            Action::RescanLocalFiles => {
+                self.local_files_source = None;
+                self.scan_local_files();
             }
             Action::ShowWindow => {
                 if self.window_hidden {
@@ -15110,6 +15206,48 @@ mod tests {
         );
         app.reveal_theme_changes = false;
         app
+    }
+
+    fn local_file(title: &str) -> crate::local_files::LocalFile {
+        crate::local_files::LocalFile {
+            uri: format!("spotify:local:Artist:Album:{title}:180"),
+            title: title.to_string(),
+            artist: "Artist".into(),
+            album: "Album".into(),
+            duration: std::time::Duration::from_secs(180),
+            path: std::path::PathBuf::from("/music/track.mp3"),
+        }
+    }
+
+    /// Reading a folder takes long enough that the listener can change it
+    /// again first. An answer to a search that has been replaced must not
+    /// overwrite the newer list, and must not report the search as finished.
+    #[test]
+    fn a_replaced_local_file_search_is_dropped() {
+        let mut app = test_app("local-files-generation");
+        app.local_files_generation = 7;
+        app.local_files_scanning = true;
+
+        app.receive_local_files(6, vec![local_file("stale")]);
+        assert!(app.local_files.is_empty(), "a replaced answer was kept");
+        assert!(
+            app.local_files_scanning,
+            "a dropped answer is not an answer"
+        );
+
+        app.receive_local_files(7, vec![local_file("current")]);
+        assert_eq!(app.local_files.len(), 1);
+        assert_eq!(app.local_files[0].title, "current");
+        assert!(!app.local_files_scanning);
+    }
+
+    /// The Local files page has to survive being remembered in history, and
+    /// reopening it must not be mistaken for a different page.
+    #[test]
+    fn the_local_files_page_round_trips_through_history() {
+        let page = Page::LocalFiles;
+        assert_eq!(Page::decode(&page.encode()), Some(Page::LocalFiles));
+        assert_ne!(page.encode(), Page::Settings.encode());
     }
 
     /// With Random on, each switch to the mini player shows a skin other

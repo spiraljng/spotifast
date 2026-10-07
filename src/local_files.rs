@@ -132,6 +132,40 @@ mod tests {
         assert!(!is_local_uri("spotify:episode:512ojhOuo1ktJprKbVcKyQ"));
     }
 
+    /// The list hands playback a URI string, and playback finds the file by
+    /// parsing that string back into the key its lookup was built with. If
+    /// the two disagree the row plays nothing and says nothing, so this
+    /// round trip is the one thing worth pinning down.
+    #[test]
+    fn a_local_uri_survives_the_round_trip_playback_makes() {
+        let uri = SpotifyUri::Local {
+            artist: "Sigur+R%C3%B3s".to_owned(),
+            album_title: "()".to_owned(),
+            track_title: "Untitled+3".to_owned(),
+            duration: Duration::from_secs(247),
+        };
+        let text = uri.to_uri().unwrap();
+        assert_eq!(text, "spotify:local:Sigur+R%C3%B3s:():Untitled+3:247");
+        assert_eq!(SpotifyUri::from_uri(&text).unwrap(), uri);
+        assert!(is_local_uri(&text));
+    }
+
+    /// A tag holding a colon must not shift the fields apart when playback
+    /// parses the URI back.
+    #[test]
+    fn a_colon_in_a_tag_still_round_trips() {
+        let uri = SpotifyUri::Local {
+            artist: "AC%2FDC".to_owned(),
+            album_title: "Back+in+Black".to_owned(),
+            track_title: "It%27s+a+Long+Way".to_owned(),
+            duration: Duration::from_secs(252),
+        };
+        let text = uri.to_uri().unwrap();
+        assert_eq!(SpotifyUri::from_uri(&text).unwrap(), uri);
+        assert_eq!(decode("It%27s+a+Long+Way"), "It's a Long Way");
+        assert_eq!(decode("AC%2FDC"), "AC/DC");
+    }
+
     #[test]
     fn files_are_ordered_by_artist_then_album_then_title() {
         let file = |artist: &str, album: &str, title: &str| LocalFile {

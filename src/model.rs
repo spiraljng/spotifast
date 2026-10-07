@@ -124,6 +124,9 @@ pub enum Page {
     /// seed's URI.
     Radio(String),
     Queue,
+    /// Audio files on this computer, listed from the folder the listener
+    /// chose.
+    LocalFiles,
     Settings,
 }
 
@@ -144,6 +147,7 @@ impl Page {
             Page::Show(id) => format!("show:{id}"),
             Page::Radio(seed) => format!("radio:{seed}"),
             Page::Queue => "queue".into(),
+            Page::LocalFiles => "local-files".into(),
             Page::Settings => "settings".into(),
         }
     }
@@ -159,6 +163,7 @@ impl Page {
             "podcasts" => Page::Podcasts,
             "episodes" => Page::Episodes,
             "queue" => Page::Queue,
+            "local-files" => Page::LocalFiles,
             "settings" => Page::Settings,
             other => {
                 let (kind, id) = other.split_once(':')?;
@@ -1121,6 +1126,13 @@ pub enum Action {
         playlist_order: Option<Vec<String>>,
     },
     RestartEngine,
+    /// Turn local file playback on or off. The engine is rebuilt, because
+    /// the folders it searches are part of its configuration.
+    SetLocalFilesEnabled(bool),
+    /// Choose the folder local files are searched in, and search it.
+    SetLocalFilesPath(std::path::PathBuf),
+    /// Search the folder again, after files were added or removed.
+    RescanLocalFiles,
     /// Rebuild the HTTP client with the proxy in settings. Local playback
     /// restarts only when its HTTP proxy changed.
     ApplyProxy,

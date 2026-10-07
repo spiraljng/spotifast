@@ -595,6 +595,24 @@ pub enum Command {
     AuthorizePlayback,
     /// Reload the engine config (audio settings changed).
     RestartEngine(EngineConfig),
+    /// Ask for the folder local files are read from. The dialog is built on
+    /// the thread that draws and awaited on the runtime, the way the playlist
+    /// cover picker is.
+    ChooseLocalFilesFolder {
+        selected:
+            std::pin::Pin<Box<dyn std::future::Future<Output = Option<rfd::FileHandle>> + Send>>,
+    },
+    /// Search a folder for audio files. Reading every file's tags is
+    /// blocking work, so it runs off the thread that draws.
+    ScanLocalFiles {
+        generation: u64,
+        directories: Vec<std::path::PathBuf>,
+    },
+    /// Internal: a local file search finished for this generation.
+    LocalFilesScanned {
+        generation: u64,
+        files: Vec<crate::local_files::LocalFile>,
+    },
     /// Rebuild the HTTP client. Restart local playback only when its HTTP
     /// proxy changed; Off, System, and SOCKS5 share a direct engine connection.
     ApplyProxy {
@@ -806,6 +824,13 @@ pub enum Event {
     Rootlist {
         result: Result<crate::player::Rootlist, String>,
     },
+    /// Audio files found on this computer, for the generation that asked.
+    LocalFiles {
+        generation: u64,
+        files: Vec<crate::local_files::LocalFile>,
+    },
+    /// The folder chosen for local files, if the dialog returned one.
+    LocalFilesFolderChosen(Option<std::path::PathBuf>),
     /// The result of reading a playlist cache for this load generation.
     PlaylistCache {
         account_id: String,
@@ -1031,6 +1056,20 @@ impl Backend {
         self.send(Command::ChoosePlaylistCover {
             id,
             request,
+            selected: Box::pin(selected),
+        });
+    }
+
+    /// The folder local files are read from. Built on the thread that draws
+    /// and awaited on the runtime, like the cover picker above.
+    pub fn choose_local_files_folder(&self) {
+        if self.offline {
+            return;
+        }
+        let selected = rfd::AsyncFileDialog::new()
+            .set_title("Choose the folder to read music from")
+            .pick_folder();
+        self.send(Command::ChooseLocalFilesFolder {
             selected: Box::pin(selected),
         });
     }
@@ -1891,6 +1930,22 @@ impl Worker {
                 Command::Rootlist => self.fetch_rootlist(),
                 Command::RootlistFinished { generation, result } => {
                     self.on_rootlist_finished(generation, result);
+                }
+                Command::ChooseLocalFilesFolder { selected } => {
+                    let events = self.events.clone();
+                    let waker = self.waker.clone();
+                    tokio::spawn(async move {
+                        let path = selected.await.map(|handle| handle.path().to_path_buf());
+                        let _ = events.send(Event::LocalFilesFolderChosen(path));
+                        waker.wake();
+                    });
+                }
+                Command::ScanLocalFiles {
+                    generation,
+                    directories,
+                } => self.scan_local_files(generation, directories),
+                Command::LocalFilesScanned { generation, files } => {
+                    self.emit(Event::LocalFiles { generation, files });
                 }
                 Command::VerifyResume => self.verify_resume(),
                 Command::LoadPlaylistCache { id, generation } => {
@@ -3024,6 +3079,17 @@ impl Worker {
         if self.signed_in && generation == *self.session.borrow() {
             self.emit(Event::Rootlist { result });
         }
+    }
+
+    /// Reads a folder for audio files on a worker thread. The answer carries
+    /// the generation back, so a search the listener has already replaced is
+    /// dropped instead of overwriting a newer list.
+    fn scan_local_files(&mut self, generation: u64, directories: Vec<std::path::PathBuf>) {
+        let commands = self.commands.clone();
+        tokio::task::spawn_blocking(move || {
+            let files = crate::local_files::scan(&directories);
+            let _ = commands.send(Command::LocalFilesScanned { generation, files });
+        });
     }
 
     fn fetch_album_types(&mut self, uris: Vec<String>) {

@@ -193,6 +193,17 @@ impl Locale {
         .replace("{count}", &count.to_string())
     }
 
+    pub fn local_file_count(self, count: u32) -> String {
+        ngettext(
+            self,
+            // Translators: Keep {count} exactly as written. It becomes a number of audio files on this computer.
+            "{count} file",
+            "{count} files",
+            count,
+        )
+        .replace("{count}", &count.to_string())
+    }
+
     pub fn playlist_count(self, count: u32) -> String {
         ngettext(
             self,

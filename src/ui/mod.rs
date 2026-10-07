@@ -9,6 +9,7 @@ mod dialogs;
 pub mod home;
 mod keys;
 pub mod library;
+pub mod local_files;
 pub mod login;
 mod lyrics;
 pub mod player_bar;
@@ -263,7 +264,7 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
             if let Some(tint) = tint {
                 let strength = if matches!(
                     app.page(),
-                    Page::Home | Page::Search | Page::Settings | Page::Queue
+                    Page::Home | Page::Search | Page::Settings | Page::Queue | Page::LocalFiles
                 ) {
                     0.45
                 } else {
@@ -310,6 +311,7 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
                                 Page::Show(id) => show::show(app, ui, &id),
                                 Page::Radio(seed) => radio::radio(app, ui, &seed),
                                 Page::Queue => queue::page(app, ui),
+                                Page::LocalFiles => local_files::show(app, ui),
                                 Page::Settings => settings::show(app, ui),
                             }
                         });

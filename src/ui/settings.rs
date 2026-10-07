@@ -1846,6 +1846,91 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         });
     }
 
+    let local_files = gettext(locale, "Local files");
+    let local_files_toggle = gettext(locale, "Play music from this computer");
+    let local_files_rows = [
+        RowText::new(
+            local_files_toggle.clone(),
+            gettext(
+                locale,
+                "Spotifast reads audio files from one folder and plays them beside Spotify. A file is found by the artist, album, and title its tags carry, so it has to keep them.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Folder"),
+            // Translators: {folder} is the path of the folder local files are read from.
+            gettext(locale, "Read from {folder}").replace(
+                "{folder}",
+                &app.settings.local_files.directory().display().to_string(),
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Rescan"),
+            gettext(
+                locale,
+                "The folder is read once when playback starts. Rescan after adding or removing files.",
+            ),
+        ),
+    ];
+    if section_matches(&needle, &local_files, &local_files_rows) {
+        any_visible = true;
+        section(ui, &palette, &local_files, |ui| {
+            filtered_row(
+                ui,
+                &palette,
+                &needle,
+                &local_files,
+                &local_files_rows[0],
+                |ui| {
+                    let mut enabled = app.settings.local_files.enabled;
+                    if widgets::switch(ui, &palette, &local_files_toggle, &mut enabled).changed() {
+                        app.actions.push(Action::SetLocalFilesEnabled(enabled));
+                    }
+                },
+            );
+            filtered_row(
+                ui,
+                &palette,
+                &needle,
+                &local_files,
+                &local_files_rows[1],
+                |ui| {
+                    if theme::soft_button(
+                        ui,
+                        &palette,
+                        None,
+                        &gettext(locale, "Choose folder"),
+                        false,
+                    )
+                    .clicked()
+                    {
+                        app.backend.choose_local_files_folder();
+                    }
+                },
+            );
+            filtered_row(
+                ui,
+                &palette,
+                &needle,
+                &local_files,
+                &local_files_rows[2],
+                |ui| {
+                    if theme::soft_button(
+                        ui,
+                        &palette,
+                        Some(Icon::Refresh),
+                        &gettext(locale, "Rescan"),
+                        false,
+                    )
+                    .clicked()
+                    {
+                        app.actions.push(Action::RescanLocalFiles);
+                    }
+                },
+            );
+        });
+    }
+
     let about = gettext(locale, "About");
     let built_with = gettext(
         locale,
