@@ -81,12 +81,19 @@ librespot provides:
   computer.
 - Shuffle, repeat, seek, and volume.
 - Songs and podcast episodes.
+- Local audio files from this computer, once the feature is turned on and a
+  folder is named. librespot finds a file by matching its tags against the
+  `spotify:local:` track, so a file has to keep the tags it was added with.
+  Files at any sample rate play; each is converted to the player's rate.
 
 Spotify Premium is required. librespot cannot play audio with a free account.
 
 Spotifast uses a small librespot fork. Its patches add queue controls,
-normalisation data for the visualisers, and an event for rejected audio keys.
-They are listed in `Cargo.toml`. Larger changes go upstream first.
+normalisation data for the visualisers, an event for rejected audio keys, and
+local file playback: files at any sample rate rather than only 44.1 kHz, the
+file list exposed so the interface and playback share one lookup instead of
+two that can disagree, and local files queueable. They are listed in
+`Cargo.toml`. Larger changes go upstream first.
 
 ## Not available
 
@@ -102,9 +109,11 @@ The Web API and librespot do not provide these features:
 - **Lossless audio.** librespot does not receive lossless streams. Spotifast
   will reconsider this if librespot gains lawful support, but it will not
   bypass Spotify's DRM.
-- **Local files.** librespot only streams Spotify's catalogue. It cannot fetch
-  audio for a `spotify:local:` entry. Playing files from disk would require a
-  separate player. See [issue #3](https://github.com/crmne/spotifast/issues/3).
+- **Adding a local file to a Spotify playlist.** Spotify's Web API refuses a
+  `spotify:local:` URI when items are added, so Spotifast can play and queue
+  local files but cannot put them into a playlist. Spotify's own clients can.
+  Once a file is in a playlist, Spotifast reads, reorders, and removes it like
+  any other row. See [issue #3](https://github.com/crmne/spotifast/issues/3).
 - **Audiobooks.** librespot does not play them. Spotify lists some
   audiobooks among saved shows; since 0.10.0, Spotifast asks the
   librespot session which ones and leaves them out of the Podcasts shelf.

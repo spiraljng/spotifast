@@ -288,12 +288,12 @@ hyper-proxy2 = { git = "https://github.com/crmne/hyper-proxy2", rev = "efca48113
 # librespot-org/librespot playback/src/decoder/symphonia_decoder.rs.
 # Every librespot crate comes from the
 # fork so one copy exists. Drop patches as upstream takes them.
-# The local file work lives on the fork's `local-files` branch, which
-# rebases onto `fastpotify-0.8`; see .github/workflows/rebase-forks.yml.
-librespot-audio = { git = "https://github.com/spiraljng/librespot", rev = "57dce73a22c4dce0a8f7b6b523e9f8e182882c6f" }
-librespot-connect = { git = "https://github.com/spiraljng/librespot", rev = "57dce73a22c4dce0a8f7b6b523e9f8e182882c6f" }
-librespot-core = { git = "https://github.com/spiraljng/librespot", rev = "57dce73a22c4dce0a8f7b6b523e9f8e182882c6f" }
-librespot-metadata = { git = "https://github.com/spiraljng/librespot", rev = "57dce73a22c4dce0a8f7b6b523e9f8e182882c6f" }
-librespot-oauth = { git = "https://github.com/spiraljng/librespot", rev = "57dce73a22c4dce0a8f7b6b523e9f8e182882c6f" }
-librespot-playback = { git = "https://github.com/spiraljng/librespot", rev = "57dce73a22c4dce0a8f7b6b523e9f8e182882c6f" }
-librespot-protocol = { git = "https://github.com/spiraljng/librespot", rev = "57dce73a22c4dce0a8f7b6b523e9f8e182882c6f" }
+# The local file work sits on the fork's `local-files` branch, one commit
+# set on top of the branch Spotifast already builds against.
+librespot-audio = { git = "https://github.com/spiraljng/librespot", rev = "1f8d10a4c03b32d01030575cbf166ea999d513df" }
+librespot-connect = { git = "https://github.com/spiraljng/librespot", rev = "1f8d10a4c03b32d01030575cbf166ea999d513df" }
+librespot-core = { git = "https://github.com/spiraljng/librespot", rev = "1f8d10a4c03b32d01030575cbf166ea999d513df" }
+librespot-metadata = { git = "https://github.com/spiraljng/librespot", rev = "1f8d10a4c03b32d01030575cbf166ea999d513df" }
+librespot-oauth = { git = "https://github.com/spiraljng/librespot", rev = "1f8d10a4c03b32d01030575cbf166ea999d513df" }
+librespot-playback = { git = "https://github.com/spiraljng/librespot", rev = "1f8d10a4c03b32d01030575cbf166ea999d513df" }
+librespot-protocol = { git = "https://github.com/spiraljng/librespot", rev = "1f8d10a4c03b32d01030575cbf166ea999d513df" }
