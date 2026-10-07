@@ -88,8 +88,9 @@ fn folded(text: &str) -> String {
 
 /// Turns a tag back into text. librespot writes these with `form_urlencoded`,
 /// which spells a space as `+` and everything else outside plain text as
-/// `%XX`.
-fn decode(encoded: &str) -> String {
+/// `%XX`. Every reading of a local URI goes through here, so a row and the
+/// list the file came from agree on the text.
+pub(crate) fn decode(encoded: &str) -> String {
     percent_encoding::percent_decode_str(&encoded.replace('+', " "))
         .decode_utf8_lossy()
         .into_owned()

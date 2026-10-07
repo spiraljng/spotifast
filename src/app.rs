@@ -8292,6 +8292,16 @@ impl App {
                 .api(ApiRequest::FollowPlaylist { id, follow: saved });
             return;
         }
+        // A local file is not in Spotify's catalogue, so there is nothing to
+        // save, and the Web API refuses a spotify:local: URI besides. Every
+        // way in comes through here, so this is the one place to say so.
+        if crate::local_files::is_local_uri(&uri) {
+            self.toast_error(gettext(
+                self.locale,
+                "Local files cannot be saved to your Spotify library.",
+            ));
+            return;
+        }
         self.set_saved_state(uri.clone(), saved);
         self.saved_writes.insert(uri.clone(), saved);
         if self.change_liked_song(&uri, saved) {

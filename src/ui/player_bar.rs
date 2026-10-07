@@ -529,7 +529,9 @@ fn now_playing_block(app: &mut App, ui: &mut egui::Ui, region: Rect, now: Option
         }
     }
 
-    if !now.is_episode {
+    // A local file is not in Spotify's catalogue, so there is nothing to
+    // save and the Web API would refuse it: no heart for one.
+    if !now.is_episode && !crate::local_files::is_local_uri(&now.uri) {
         let saved = app.is_saved(&now.uri).unwrap_or(false);
         let (icon, color, tooltip) = if saved {
             (

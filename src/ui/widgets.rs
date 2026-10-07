@@ -819,7 +819,9 @@ pub fn item_menu(
             label: label.clone(),
         });
     }
-    if item.is_track() {
+    // A local file is not in Spotify's catalogue: there is nothing to save
+    // and no playlist that could take it, since the Web API refuses its URI.
+    if item.is_track() && !crate::local_files::is_local_uri(&uri) {
         let saved = app.is_saved(&uri).unwrap_or(false);
         let (icon, text) = if saved {
             (

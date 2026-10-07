@@ -406,18 +406,23 @@ pub(crate) fn local_track(id: &SpotifyUri, uri: String) -> Option<PlayableItem> 
     else {
         return None;
     };
+    // The URI spells these the way librespot wrote them, with a space as `+`
+    // and anything else as `%XX`. A row shows the text, not the spelling.
+    let artist = crate::local_files::decode(artist);
+    let album_title = crate::local_files::decode(album_title);
+    let track_title = crate::local_files::decode(track_title);
     Some(PlayableItem::Track(Track {
         uri,
-        name: track_title.clone(),
+        name: track_title,
         duration_ms: u32::try_from(duration.as_millis()).unwrap_or(u32::MAX),
-        artists: non_empty(artist)
+        artists: non_empty(&artist)
             .map(|name| ArtistRef {
                 name,
                 ..Default::default()
             })
             .into_iter()
             .collect(),
-        album: non_empty(album_title).map(|name| Album {
+        album: non_empty(&album_title).map(|name| Album {
             name,
             ..Default::default()
         }),
@@ -769,6 +774,23 @@ mod tests {
         );
         assert_eq!(track.duration_ms, 180_000);
         assert_eq!(track.uri, "spotify:local:Artist:Album:Song:180");
+    }
+
+    /// A real local file's URI spells its tags with `+` for a space and `%XX`
+    /// for anything else, because that is how librespot writes them. A row
+    /// shows the text. Showing the spelling is what put
+    /// `Shame+-+Daniel+Caesar+%28Unreleased%29` in the queue.
+    #[test]
+    fn a_local_row_reads_its_tags_rather_than_their_spelling() {
+        let text = "spotify:local:DanielCaesarLover66::Shame+-+Daniel+Caesar+%28Unreleased%29:332";
+        let id = SpotifyUri::from_uri(text).unwrap();
+        let Some(PlayableItem::Track(track)) = local_track(&id, text.to_string()) else {
+            panic!("a local file is a track");
+        };
+        assert_eq!(track.name, "Shame - Daniel Caesar (Unreleased)");
+        assert_eq!(track.artist_names(), "DanielCaesarLover66");
+        assert_eq!(track.duration_ms, 332_000);
+        assert!(track.is_local);
     }
 
     #[test]
