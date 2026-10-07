@@ -49,6 +49,23 @@ impl ApiError {
             _ => None,
         }
     }
+
+    /// Whether asking again could get a different answer.
+    ///
+    /// A rate limit and an exhausted quota are not server faults: waiting the
+    /// server's own Retry-After and asking again is what keeps a shared quota
+    /// spent, because every retry is another request against it. A refusal
+    /// Spotify made about the request itself will not change either.
+    pub fn retryable(&self) -> bool {
+        match self {
+            Self::Status { status, .. } => *status >= 500,
+            Self::Network(_) | Self::Decode(_) => true,
+            Self::NotSignedIn
+            | Self::RateLimited
+            | Self::QuotaExhausted
+            | Self::SignInExpired { .. } => false,
+        }
+    }
 }
 
 impl From<reqwest::Error> for ApiError {
@@ -1482,6 +1499,39 @@ mod tests {
         assert!(!is_quota_exhausted(
             r#"{"error":{"status":429,"message":"Too many requests"}}"#
         ));
+    }
+
+    /// A rate limit and an exhausted quota carry no HTTP status, so a caller
+    /// that asked only whether the status was below 500 read them as server
+    /// faults and asked again. Sign-in verification did, forever, every
+    /// thirty seconds, which is what kept a shared quota spent.
+    #[test]
+    fn a_rate_limit_is_not_something_to_ask_again() {
+        assert!(!ApiError::RateLimited.retryable());
+        assert!(!ApiError::QuotaExhausted.retryable());
+        assert!(!ApiError::NotSignedIn.retryable());
+        assert!(
+            !ApiError::SignInExpired {
+                api_source: ApiSource::Shared
+            }
+            .retryable()
+        );
+        assert!(
+            !ApiError::Status {
+                status: 400,
+                message: String::new()
+            }
+            .retryable()
+        );
+
+        assert!(
+            ApiError::Status {
+                status: 503,
+                message: String::new()
+            }
+            .retryable()
+        );
+        assert!(ApiError::Network(String::new()).retryable());
     }
 
     #[tokio::test]

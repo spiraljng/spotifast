@@ -2245,7 +2245,7 @@ impl Worker {
                         return;
                     }
                     Err(error @ ApiError::SignInExpired { .. }) => break error,
-                    Err(error) if error.status().is_some_and(|status| status < 500) => break error,
+                    Err(error) if !error.retryable() => break error,
                     Err(error) => {
                         log::warn!("Spotify sign-in verification will retry: {error}");
                         tokio::time::sleep(wait).await;
