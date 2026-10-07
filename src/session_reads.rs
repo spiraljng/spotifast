@@ -396,7 +396,7 @@ fn item(row: &SessionRow, playables: &HashMap<String, PlayableItem>) -> Playlist
 /// A local file as a track, from the only description Spotify holds of
 /// it: the artist, album, title, and length written into its URI. Rows for
 /// local files must stay in the list, or every row after them moves.
-fn local_track(id: &SpotifyUri, uri: String) -> Option<PlayableItem> {
+pub(crate) fn local_track(id: &SpotifyUri, uri: String) -> Option<PlayableItem> {
     let SpotifyUri::Local {
         artist,
         album_title,

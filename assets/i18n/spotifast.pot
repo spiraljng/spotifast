@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: Spotifast\n"
 "Report-Msgid-Bugs-To: https://github.com/crmne/spotifast/issues/new?"
 "template=translation.yml\n"
-"POT-Creation-Date: 2026-10-07 13:51-0700\n"
+"POT-Creation-Date: 2026-10-07 14:16-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -31,12 +31,12 @@ msgstr ""
 msgid "Play {name}"
 msgstr ""
 
-#: src/ui/sidebar.rs:300 src/app.rs:2434 src/app.rs:16540
+#: src/ui/sidebar.rs:300 src/app.rs:2434 src/app.rs:16570
 #: src/ui/collection.rs:1700 src/ui/collection.rs:1877
 msgid "Playlist"
 msgstr ""
 
-#: src/ui/sidebar.rs:310 src/app.rs:2408 src/app.rs:16545
+#: src/ui/sidebar.rs:310 src/app.rs:2408 src/app.rs:16575
 #: src/ui/collection.rs:1870 src/ui/home.rs:49 src/ui/keys.rs:258
 #: src/ui/winamp/playlist.rs:653
 msgid "Liked Songs"
@@ -412,7 +412,7 @@ msgstr ""
 msgid "No timed lyrics for this track."
 msgstr ""
 
-#: src/ui/lyrics.rs:385 src/ui/widgets.rs:2490 src/app.rs:10256
+#: src/ui/lyrics.rs:385 src/ui/widgets.rs:2490 src/app.rs:10264
 #: src/ui/collection.rs:733
 msgid "Loading…"
 msgstr ""
@@ -742,7 +742,7 @@ msgid "Queue cleared"
 msgstr ""
 
 #. Translators: Keep {date} unchanged. It is a date in YYYY-MM-DD form.
-#: src/app.rs:4486 src/app.rs:16530
+#: src/app.rs:4486 src/app.rs:16560
 #, rust-format
 msgid "Queue {date}"
 msgstr ""
@@ -942,145 +942,145 @@ msgstr ""
 msgid "{name} added to queue"
 msgstr ""
 
-#: src/app.rs:8177
+#: src/app.rs:8185
 msgid "The clipboard has no Spotify song links"
 msgstr ""
 
 #. Translators: {count} is the number of pasted links that failed.
-#: src/app.rs:8258
+#: src/app.rs:8266
 #, rust-format
 msgid "{count} pasted link could not be added"
 msgid_plural "{count} pasted links could not be added"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/app.rs:8848
+#: src/app.rs:8856
 msgid "Spotify doesn't let apps remove a playlist description, so it was kept"
 msgstr ""
 
-#: src/app.rs:8892 src/app.rs:8905
+#: src/app.rs:8900 src/app.rs:8913
 msgid "Link copied"
 msgstr ""
 
 #. Translators: {count} is a number of song links, always more than one.
-#: src/app.rs:8909
+#: src/app.rs:8917
 #, rust-format
 msgid "{count} link copied"
 msgid_plural "{count} links copied"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/app.rs:9164
+#: src/app.rs:9172
 msgid ""
 "Spotify doesn't let apps reorder your playlists, so this order is saved on "
 "this computer"
 msgstr ""
 
-#: src/app.rs:9224
+#: src/app.rs:9232
 msgid "Restarting local playback"
 msgstr ""
 
-#: src/app.rs:9285
+#: src/app.rs:9293
 msgid "Local playback needs Spotify Premium"
 msgstr ""
 
-#: src/app.rs:9297
+#: src/app.rs:9305
 msgid "Opening your browser to set up local playback"
 msgstr ""
 
-#: src/app.rs:9314
+#: src/app.rs:9322
 msgid "Play history cleared"
 msgstr ""
 
 #. Translators: {size} is a size in megabytes, such as 12.5.
-#: src/app.rs:9325
+#: src/app.rs:9333
 #, rust-format
 msgid "Cleared {size} MB of artwork"
 msgstr ""
 
 #. Translators: {error} is an error message.
-#: src/app.rs:9331
+#: src/app.rs:9339
 #, rust-format
 msgid "Couldn't clear artwork: {error}"
 msgstr ""
 
-#: src/app.rs:9511
+#: src/app.rs:9519
 msgid "Downloading MilkDrop preset packs"
 msgstr ""
 
 #. Translators: {name} is the name of a visualizer preset pack.
-#: src/app.rs:9545
+#: src/app.rs:9553
 #, rust-format
 msgid "Downloading {name} presets"
 msgstr ""
 
-#: src/app.rs:10369
+#: src/app.rs:10377
 msgid "Couldn't start playback"
 msgstr ""
 
-#: src/app.rs:10370
+#: src/app.rs:10378
 msgid "Couldn't pause"
 msgstr ""
 
-#: src/app.rs:10371
+#: src/app.rs:10379
 msgid "Couldn't skip"
 msgstr ""
 
-#: src/app.rs:10372
+#: src/app.rs:10380
 msgid "Couldn't go back"
 msgstr ""
 
-#: src/app.rs:10373
+#: src/app.rs:10381
 msgid "Couldn't seek"
 msgstr ""
 
-#: src/app.rs:10374
+#: src/app.rs:10382
 msgid "Couldn't change the volume"
 msgstr ""
 
-#: src/app.rs:10375
+#: src/app.rs:10383
 msgid "Couldn't change shuffle"
 msgstr ""
 
-#: src/app.rs:10376
+#: src/app.rs:10384
 msgid "Couldn't change repeat"
 msgstr ""
 
-#: src/app.rs:10419
+#: src/app.rs:10427
 msgid ""
 "No audio output device was found. Connect or enable one, then press play "
 "again."
 msgstr ""
 
-#: src/app.rs:10430
+#: src/app.rs:10438
 msgid ""
 "Spotify doesn't make this playlist's songs available to third-party apps."
 msgstr ""
 
-#: src/app.rs:10560
+#: src/app.rs:10568
 msgid "Spotify sign-in expired. Sign in again, then retry the cover upload."
 msgstr ""
 
-#: src/app.rs:10565
+#: src/app.rs:10573
 msgid ""
 "Spotify refused this cover. Check that you own the playlist, then sign in "
 "again to grant image upload permission. If using a personal app, reconnect "
 "it in Settings too."
 msgstr ""
 
-#: src/app.rs:10569
+#: src/app.rs:10577
 msgid "Spotify rejected the image size. Choose a smaller image."
 msgstr ""
 
 #. Translators: {error} is an error message.
-#: src/app.rs:10572
+#: src/app.rs:10580
 #, rust-format
 msgid "Couldn't upload the cover: {error}. Try again."
 msgstr ""
 
 #. Translators: Keep {track} unchanged. It is the name of the song,
 #. playlist, album, or artist the radio is based on, not translated.
-#: src/app.rs:16550 src/app/radio.rs:38
+#: src/app.rs:16580 src/app/radio.rs:38
 #, rust-format
 msgid "{track} Radio"
 msgstr ""

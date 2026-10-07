@@ -7942,6 +7942,14 @@ impl App {
         if let Some(track) = known {
             return PlayableItem::Track(track.clone());
         }
+        // A local file is in none of the lists above. The URI carries the
+        // only description there is, so read it the way a playlist row does
+        // rather than queueing a row with no length.
+        if let Ok(id) = librespot_core::SpotifyUri::from_uri(uri)
+            && let Some(item) = crate::session_reads::local_track(&id, uri.to_string())
+        {
+            return item;
+        }
         PlayableItem::Track(crate::api::models::Track {
             uri: uri.to_string(),
             name: label.to_string(),
@@ -13319,6 +13327,28 @@ mod tests {
             "a local file must never reach the Web API"
         );
         here.backend.shutdown();
+    }
+
+    /// A queued local file used to arrive with no length, because nothing
+    /// the app holds knows it: it is in no playlist, album, or search
+    /// result. Its URI carries the length, so the row reads it the way a
+    /// playlist row does instead of showing 0:00.
+    #[test]
+    fn a_queued_local_file_keeps_the_length_its_uri_carries() {
+        let mut app = test_app("local-queue-length");
+        let item = app.optimistic_queue_item("spotify:local:Artist:Album:Song:245", "Song");
+        let PlayableItem::Track(track) = item else {
+            panic!("a local file queues as a track");
+        };
+        assert_eq!(track.name, "Song");
+        assert_eq!(track.duration_ms, 245_000);
+        assert!(track.is_local);
+        assert_eq!(
+            track.artists.first().map(|a| a.name.as_str()),
+            Some("Artist")
+        );
+        assert_eq!(track.album.as_ref().map(|a| a.name.as_str()), Some("Album"));
+        app.backend.shutdown();
     }
 
     #[test]
