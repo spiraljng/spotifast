@@ -97,12 +97,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         .collect();
     let files = app.local_files.clone();
     for (index, file) in files.iter().enumerate() {
-        if row(app, ui, index, file) {
-            app.actions.push(Action::PlayUris {
-                uris: uris.clone(),
-                index: index as u32,
-            });
-        }
+        row(app, ui, index, file, &uris);
     }
 }
 
@@ -135,7 +130,7 @@ fn toolbar(app: &mut App, ui: &mut egui::Ui) {
 /// Draws one file and reports whether it was chosen. A right-click queues it
 /// instead, which is the one thing the queue can do with a local file: it can
 /// be played and queued, but Spotify's API will not take it into a playlist.
-fn row(app: &mut App, ui: &mut egui::Ui, index: usize, file: &LocalFile) -> bool {
+fn row(app: &mut App, ui: &mut egui::Ui, index: usize, file: &LocalFile, uris: &[String]) {
     let palette = app.palette;
     let locale = app.locale;
     let compact = app.settings.tracklist_compact;
@@ -239,6 +234,10 @@ fn row(app: &mut App, ui: &mut egui::Ui, index: usize, file: &LocalFile) -> bool
 
     response.context_menu(|ui| {
         if ui.button(gettext(locale, "Play")).clicked() {
+            app.actions.push(Action::PlayUris {
+                uris: uris.to_vec(),
+                index: index as u32,
+            });
             ui.close();
         }
         if ui.button(gettext(locale, "Add to queue")).clicked() {
@@ -250,12 +249,11 @@ fn row(app: &mut App, ui: &mut egui::Ui, index: usize, file: &LocalFile) -> bool
     });
 
     if response.clicked() {
-        return true;
+        app.actions.push(Action::PlayUris {
+            uris: uris.to_vec(),
+            index: index as u32,
+        });
     }
-    if response.secondary_clicked() {
-        return false;
-    }
-    false
 }
 
 /// One line of row text, cut to the width it is given.

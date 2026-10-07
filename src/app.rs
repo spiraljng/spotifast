@@ -4390,8 +4390,14 @@ impl App {
     /// insert into a live queue; the only way to change one is to clear it
     /// and re-add its songs in the new order, which only reaches the
     /// engine actually playing them.
-    pub fn queue_locally_reorderable(&self) -> bool {
+    /// Whether Spotify is playing on this computer's own engine, so its
+    /// queue can be written directly.
+    pub fn playing_here(&self) -> bool {
         self.local.is_active() && matches!(self.target(), Target::Local)
+    }
+
+    pub fn queue_locally_reorderable(&self) -> bool {
+        self.playing_here()
     }
 
     /// Whether the active local queue has rows that can be cleared.
@@ -7715,7 +7721,12 @@ impl App {
     fn resync_local_queue(&mut self) {
         self.backend.player(PlayerCommand::ClearQueue);
         for uri in self.manual_queue.clone() {
-            if uri.starts_with("spotify:track:") || uri.starts_with("spotify:episode:") {
+            // Local files belong here too: they are queued on this engine,
+            // and leaving them out drops them from the queue on a reorder.
+            if uri.starts_with("spotify:track:")
+                || uri.starts_with("spotify:episode:")
+                || crate::local_files::is_local_uri(&uri)
+            {
                 self.backend.player(PlayerCommand::AddToQueue(uri));
             }
         }
@@ -7734,16 +7745,31 @@ impl App {
     ///
     /// `announce` is false when a batch should produce one toast.
     fn queue_one(&mut self, uri: String, label: String, announce: bool) {
+        // A local file is read from this computer's disk, so only this
+        // computer can play it. Spotify's Web API refuses a spotify:local:
+        // URI outright, and a remote device could not open the file anyway,
+        // so this is refused before anything is shown rather than after a
+        // round trip that was always going to fail.
+        let local_file = crate::local_files::is_local_uri(&uri);
+        let here = self.playing_here();
+        if local_file && !here {
+            self.toast_error(gettext(
+                self.locale,
+                "Local files play on this computer only. Switch playback here first.",
+            ));
+            return;
+        }
         let pending_start = self.pending_queue_adds.len();
         self.show_queued_song(&uri, &label);
         if announce {
             // Translators: {name} is a song, episode, album, or playlist name.
             self.toast(gettext(self.locale, "{name} added to queue").replace("{name}", &label));
         }
-        // Queue tracks and episodes directly on the active local engine.
-        // Other targets and item types use the Web API.
-        let track_like = uri.starts_with("spotify:track:") || uri.starts_with("spotify:episode:");
-        if track_like && self.local.is_active() && matches!(self.target(), Target::Local) {
+        // Queue tracks, episodes, and local files directly on the active
+        // local engine. Other targets and item types use the Web API.
+        let track_like =
+            uri.starts_with("spotify:track:") || uri.starts_with("spotify:episode:") || local_file;
+        if track_like && here {
             self.backend.player(PlayerCommand::AddToQueue(uri));
             self.queue_recheck_at = Some(Instant::now() + QUEUE_RECHECK);
             return;
@@ -13240,6 +13266,59 @@ mod tests {
             assert_eq!(queue_uris(&app).1, ["spotify:track:context"]);
             app.backend.shutdown();
         }
+    }
+
+    /// A local file is read from this computer's disk, so only this computer
+    /// can play it. Queueing one while another device was playing used to go
+    /// to Spotify's Web API, which refuses a spotify:local: URI: the row
+    /// appeared, then vanished behind an error. It is refused up front now,
+    /// and routed to the engine when this computer is the one playing.
+    #[test]
+    fn queueing_a_local_file_elsewhere_is_refused_before_anything_is_shown() {
+        let ctx = egui::Context::default();
+        let uri = "spotify:local:Artist:Album:Song:180";
+        let add = || Action::AddToQueue {
+            uri: uri.into(),
+            label: "Song".into(),
+        };
+
+        let mut elsewhere = test_app("local-queue-elsewhere");
+        elsewhere.local_ready = false;
+        elsewhere.local.connected = false;
+        elsewhere.local.playback = Playback::Stopped;
+        elsewhere.local.track = None;
+        assert_ne!(
+            elsewhere.target(),
+            Target::Local,
+            "this case needs another device playing"
+        );
+        elsewhere.apply(add(), &ctx);
+        assert!(
+            elsewhere.manual_queue.is_empty(),
+            "the row was shown before the refusal"
+        );
+        assert!(
+            elsewhere.backend.take_queue_requests().is_empty(),
+            "it went to the Web API, which refuses local URIs"
+        );
+        elsewhere.backend.shutdown();
+
+        let mut here = test_app("local-queue-here");
+        here.local_ready = true;
+        here.local.connected = true;
+        here.local.playback = Playback::Playing;
+        here.local.track = Some(crate::player::LocalTrack {
+            uri: "spotify:track:current".into(),
+            ..Default::default()
+        });
+        assert_eq!(here.target(), Target::Local);
+        here.apply(add(), &ctx);
+        assert_eq!(here.manual_queue, [uri.to_string()]);
+        assert!(
+            here.backend.take_queue_requests().is_empty(),
+            "a local file must never reach the Web API"
+        );
+        here.backend.shutdown();
     }
 
     #[test]
